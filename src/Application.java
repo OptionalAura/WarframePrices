@@ -19,6 +19,7 @@ import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.*;
+import java.util.Comparator;
 import java.util.List;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
@@ -49,14 +50,10 @@ public class Application {
                 shutdown();
             }
         });
-        System.out.println(Utils.listToString(window.getTableModel().getDataVector()));
+        //System.out.println(Utils.listToString(window.getTableModel().getDataVector()));
         loadSearchedItems = new RunOnceAfterDelayThread(1000, () -> {
             final List<Item> dataVector = window.getTableModel().getDataVector();
-            for (Item entry : dataVector) {
-                if(window.getTableModel().filter(entry)){
-                    searchedItems.pushTask(entry);
-                }
-            }
+            for (Item entry : dataVector) if (window.getTableModel().filter(entry)) searchedItems.pushTask(entry);
         });
         window.searchBar.addKeyListener(new KeyAdapter() {
             @Override
@@ -67,13 +64,11 @@ public class Application {
                     searchedItems.purgeQueue();
                     searchedItems.setPaused(true);
                     allItems.setPaused(false);
-                } else {
-                    if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-                        searchedItems.purgeQueue();
-                        loadSearchedItems.trigger();
-                        searchedItems.setPaused(false);
-                        allItems.setPaused(true);
-                    }
+                } else if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                    searchedItems.purgeQueue();
+                    loadSearchedItems.trigger();
+                    searchedItems.setPaused(false);
+                    allItems.setPaused(true);
                 }
             }
         });
@@ -122,12 +117,8 @@ public class Application {
             if (storageFile.exists()) {
                 ObjectInputStream oos = new ObjectInputStream(new GZIPInputStream(new FileInputStream(storageFile)));
                 List<Item> o = (List<Item>) oos.readObject();
-                o.sort((a,b)->{
-                    return a.name.compareTo(b.name);
-                });
-                for(int i = 0; i < o.size(); i++){
-                    o.get(i).location = i;
-                }
+                o.sort(Comparator.comparing(a -> a.name));
+                for (int i = 0; i < o.size(); i++) o.get(i).location = i;
                 window.getTableModel().setDataVector(o);
                 oos.close();
 

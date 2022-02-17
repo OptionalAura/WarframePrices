@@ -22,7 +22,7 @@ import java.io.Serializable;
 import java.util.HashMap;
 
 @SuppressWarnings("SerializableHasSerializationMethods")
-public class Item implements Serializable {
+public class Item implements Serializable, CSVable {
     @Serial
     private static final long serialVersionUID = 5;
     public static HashMap<String, Item> items = new HashMap<>();
@@ -83,12 +83,8 @@ public class Item implements Serializable {
         tags = new String[tagsJSON.length()];
         for (int i = 0; i < tagsJSON.length(); i++) {
             tags[i] = tagsJSON.getString(i);
-            if (!prime && tags[i].equals("prime")) {
-                prime = true;
-            }
-            if (!mod && tags[i].equals("mod")) {
-                mod = true;
-            }
+            if (!prime && tags[i].equals("prime")) prime = true;
+            if (!mod && tags[i].equals("mod")) mod = true;
         }
         if (prime && !mod) {
             //define ducat price
@@ -153,12 +149,14 @@ public class Item implements Serializable {
     }
 
     private double calculateDucatsPerPlat() {
-        if(ducats == null || ducats == 0)
-            return 0;
-        if(Utils.notNull(sellPrice, 0) == 0 && Utils.notNull(avg48h, 0d) == 0)
-            return 0;
-        if(Utils.notNull(sellPrice, 0) == 0)
-            return ducats/avg48h;
-        return ducats/(double)sellPrice;
+        if (ducats == null || ducats == 0) return 0;
+        if (Utils.notNull(sellPrice, 0) == 0 && Utils.notNull(avg48h, 0d) == 0) return 0;
+        if (Utils.notNull(sellPrice, 0) == 0) return ducats / avg48h;
+        return ducats / (double) sellPrice;
+    }
+
+    @Override
+    public String toCSV() {
+        return this.name + "," + this.avg90d + "," + this.avg48h;
     }
 }

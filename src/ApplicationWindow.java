@@ -17,8 +17,11 @@
 import javax.swing.*;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
+import java.io.File;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 
 public class ApplicationWindow extends JFrame {
     /**
@@ -62,6 +65,7 @@ public class ApplicationWindow extends JFrame {
     GridBagLayout gbl;
     GridBagConstraints gbc;
     private JPanel mainPanel;
+    private JButton saveButton;
     //TODO Rename this to something actually memorable
     private JTable table;
     private SearchableTableModel<Item> tableModel;
@@ -86,7 +90,7 @@ public class ApplicationWindow extends JFrame {
         this.setSize(new Dimension(width, height));
         this.setMinimumSize(new Dimension(100, 80));
         this.setLocationRelativeTo(null);
-        this.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        this.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
     }
 
     /**
@@ -95,36 +99,29 @@ public class ApplicationWindow extends JFrame {
     private void initComponents() {
         mainPanel = new JPanel();
         searchBar = new JTextField();
-        tableModel = new SearchableTableModel<>(new String[]{"Name", "Buy Price", "Sell Price", "Profit", "Average Price (48h)", "Average Price " +
-                "(90d)", "Trend", "Orders", "Profitable?", "Relics", "Tags", "Ducats", "Ducats/Plat"}, 0) {
+        saveButton = new JButton("Save");
+        tableModel = new SearchableTableModel<>(new String[]{"Name", "Buy Price", "Sell Price", "Profit", "Average Price (48h)",
+                "Average Price " + "(90d)", "Trend", "Orders", "Profitable?", "Relics", "Tags", "Ducats", "Ducats/Plat"}, 0) {
             //todo allow permissive filters rather than exclusive (i.e show things that match A & B, but also show things that match A || B)
             @Override
             public boolean filter(Item item) {
-                if(getSearchText().isBlank()){
-                    return true;
-                }
+                if (getSearchText().isBlank()) return true;
                 boolean shouldShow = true;
                 String[] conditions = getSearchText().trim().split(",");
                 //["Meso N1", "!Meso N10"]
-                for(int i = 0; i < conditions.length; i++){
+                for (int i = 0; i < conditions.length; i++) {
                     String condition = conditions[i].trim();
-                    if(condition.isBlank())
-                        continue;
+                    if (condition.isBlank()) continue;
                     boolean inverted = condition.charAt(0) == '!';
                     String firstTrim = inverted ? condition.substring(1) : condition;
                     boolean searchTagOnly = (firstTrim.length() > 1) && firstTrim.charAt(0) == '#';
                     final String searchText = searchTagOnly ? firstTrim.substring(1) : firstTrim;
                     boolean valid = false;
-                    if (!searchTagOnly && Utils.containsIgnoreCase(item.name, searchText)) {
+                    if (!searchTagOnly && Utils.containsIgnoreCase(item.name, searchText)) valid = true;
+                    else if (item.tags != null && Arrays.stream(item.tags).anyMatch((s) -> s.equalsIgnoreCase(searchText))) valid = true;
+                    else if (!searchTagOnly && item.relics != null && Arrays.stream(item.relics).anyMatch((s) -> s.equalsIgnoreCase(searchText)))
                         valid = true;
-                    } else if (item.tags != null && Arrays.stream(item.tags).anyMatch((s) -> s.equalsIgnoreCase(searchText))) {
-                        valid = true;
-                    } else if (!searchTagOnly && item.relics != null && Arrays.stream(item.relics).anyMatch((s) -> s.equalsIgnoreCase(searchText))) {
-                        valid = true;
-                    }
-                    if(shouldShow){
-                        shouldShow = valid != inverted;
-                   }
+                    if (shouldShow) shouldShow = valid != inverted;
                 }
 
                 return shouldShow;
@@ -142,7 +139,18 @@ public class ApplicationWindow extends JFrame {
         };
 
         tableSorter = new TableRowSorter<>(tableModel);
-
+        saveButton.addActionListener(e -> {
+            List<Item> items = tableModel.getDataVector().stream().filter(item -> tableModel.filter(item)).toList();
+            try {
+                File f = new File("search.csv");
+                CSVWriter writer = new CSVWriter(f);
+                for (Item i : items) writer.writeObject(i);
+                writer.flush();
+                writer.close();
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        });
         table = new JTable(tableModel);
         table.setRowSorter(tableSorter);
         tableSorter.setRowFilter(tableModel.filter);
@@ -153,7 +161,7 @@ public class ApplicationWindow extends JFrame {
         //set base properties of the layout
         gbl = new GridBagLayout();
         gbc = new GridBagConstraints();
-        gbl.columnWeights = new double[]{0.8, 1.0};
+        gbl.columnWeights = new double[]{1.0, 1.0};
         gbl.rowWeights = new double[]{0.0, 1.0};
         gbl.rowHeights = new int[]{30};
         mainPanel.setLayout(gbl);
@@ -164,7 +172,11 @@ public class ApplicationWindow extends JFrame {
 
         //add components
         mainPanel.add(searchBar, gbc);
+        gbc.gridx++;
+        mainPanel.add(saveButton, gbc);
+        gbc.gridx = 0;
         gbc.gridy++;
+        gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.BOTH;
         mainPanel.add(new JScrollPane(table), gbc);
         //mainPanel.add(table, gbc);
