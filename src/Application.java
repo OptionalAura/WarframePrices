@@ -14,10 +14,7 @@
  * limitations under the License.
  */
 
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
+import java.awt.event.*;
 import java.io.*;
 import java.util.Comparator;
 import java.util.List;
@@ -72,7 +69,12 @@ public class Application {
                 }
             }
         });
-
+        window.showTrackedOnly.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                window.getTableModel().fireTableDataChanged();
+            }
+        });
         window.styleComponents(ApplicationWindow.STYLE_DARK);
         initialized = true;
     }

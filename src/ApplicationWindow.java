@@ -17,6 +17,8 @@
 import javax.swing.*;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
@@ -65,7 +67,11 @@ public class ApplicationWindow extends JFrame {
     GridBagLayout gbl;
     GridBagConstraints gbc;
     private JPanel mainPanel;
-    private JButton saveButton;
+    JButton saveButton;
+    JCheckBox showTrackedOnly;
+    JPopupMenu popupMenu;
+    JMenuItem trackItem;
+    JMenuItem trackValue;
     //TODO Rename this to something actually memorable
     private JTable table;
     private SearchableTableModel<Item> tableModel;
@@ -100,17 +106,18 @@ public class ApplicationWindow extends JFrame {
         mainPanel = new JPanel();
         searchBar = new JTextField();
         saveButton = new JButton("Save");
-        tableModel = new SearchableTableModel<>(new String[]{"Name", "Buy Price", "Sell Price", "Profit", "Average Price (48h)",
+        showTrackedOnly = new JCheckBox();
+        tableModel = new SearchableTableModel<Item>(new String[]{"Name", "Buy Price", "Sell Price", "Profit", "Average Price (48h)",
                 "Average Price " + "(90d)", "Trend", "Orders", "Profitable?", "Relics", "Tags", "Ducats", "Ducats/Plat"}, 0) {
             //todo allow permissive filters rather than exclusive (i.e show things that match A & B, but also show things that match A || B)
             @Override
             public boolean filter(Item item) {
+                if (showTrackedOnly.isSelected()) return item.tracked;
                 if (getSearchText().isBlank()) return true;
                 boolean shouldShow = true;
                 String[] conditions = getSearchText().trim().split(",");
-                //["Meso N1", "!Meso N10"]
-                for (int i = 0; i < conditions.length; i++) {
-                    String condition = conditions[i].trim();
+                for (String value : conditions) {
+                    String condition = value.trim();
                     if (condition.isBlank()) continue;
                     boolean inverted = condition.charAt(0) == '!';
                     String firstTrim = inverted ? condition.substring(1) : condition;
@@ -130,6 +137,14 @@ public class ApplicationWindow extends JFrame {
             @Override
             public Class<?> getColumnClass(int columnIndex) {
                 return Item.getColumnClass(columnIndex);
+            }
+
+            public Item getItemAt(int rowIndex) {
+                return getItemFromAbsoluteIndex(table.convertRowIndexToModel(rowIndex));
+            }
+
+            public Item getItemFromAbsoluteIndex(int rowIndex) {
+                return getDataVector().get(rowIndex);
             }
 
             @Override
@@ -153,6 +168,47 @@ public class ApplicationWindow extends JFrame {
         });
         table = new JTable(tableModel);
         table.setRowSorter(tableSorter);
+        popupMenu = new JPopupMenu();
+        trackValue = new JMenuItem("Tracked Value: ");
+        trackItem = new JMenuItem("Track");
+        trackItem.addActionListener(e -> {
+            int rowAtPoint = table.getSelectedRow();
+            if (rowAtPoint >= 0) {
+                Item item = tableModel.getDataVector().get(table.convertRowIndexToModel(rowAtPoint));
+                if (item.tracked) item.tracked = false;
+                else {
+                    item.tracked = true;
+                    String input;
+                    do input = JOptionPane.showInputDialog("Enter Target Price"); while (input == null || input.isBlank() ||
+                            !input.matches("^[0-9]*$"));
+                    item.trackValue = Integer.parseInt(input);
+                }
+            }
+        });
+        table.addMouseListener(new MouseAdapter() {
+            public void mouseReleased(MouseEvent e) {
+                if (e.isPopupTrigger()) {
+                    JTable source = (JTable) e.getSource();
+                    int row = source.rowAtPoint(e.getPoint());
+                    int column = source.columnAtPoint(e.getPoint());
+
+                    if (!source.isRowSelected(row)) source.changeSelection(row, column, false, false);
+
+                    Item item = tableModel.getDataVector().get(table.convertRowIndexToModel(table.rowAtPoint(e.getPoint())));
+                    if (item.tracked) {
+                        trackValue.setVisible(true);
+                        trackValue.setText("Tracked Value: " + item.trackValue);
+                        trackItem.setText("Untrack");
+                    } else {
+                        trackValue.setVisible(false);
+                        trackItem.setText("Track");
+                    }
+                    popupMenu.show(e.getComponent(), e.getX(), e.getY());
+                }
+            }
+        });
+        popupMenu.add(trackValue);
+        popupMenu.add(trackItem);
         tableSorter.setRowFilter(tableModel.filter);
     }
 
@@ -161,7 +217,7 @@ public class ApplicationWindow extends JFrame {
         //set base properties of the layout
         gbl = new GridBagLayout();
         gbc = new GridBagConstraints();
-        gbl.columnWeights = new double[]{1.0, 1.0};
+        gbl.columnWeights = new double[]{1.0, 0, 0.3};
         gbl.rowWeights = new double[]{0.0, 1.0};
         gbl.rowHeights = new int[]{30};
         mainPanel.setLayout(gbl);
@@ -174,9 +230,11 @@ public class ApplicationWindow extends JFrame {
         mainPanel.add(searchBar, gbc);
         gbc.gridx++;
         mainPanel.add(saveButton, gbc);
+        gbc.gridx++;
+        mainPanel.add(showTrackedOnly, gbc);
         gbc.gridx = 0;
         gbc.gridy++;
-        gbc.gridwidth = 2;
+        gbc.gridwidth = 3;
         gbc.fill = GridBagConstraints.BOTH;
         mainPanel.add(new JScrollPane(table), gbc);
         //mainPanel.add(table, gbc);

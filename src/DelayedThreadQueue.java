@@ -16,13 +16,14 @@
 
 import org.json.JSONObject;
 
+import java.awt.*;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 
 public class DelayedThreadQueue extends Thread{
     private final ArrayDeque<Item> itemQueue;
-    private long delay;
+    private final long delay;
     private volatile boolean shouldRun = true;
     private volatile boolean paused = false;
     private final Application app;
@@ -46,19 +47,17 @@ public class DelayedThreadQueue extends Thread{
     }
     @Override
     public void run() {
-        while(shouldRun) {
-            if(!paused) {
-                Item item = itemQueue.pollLast();
-                if (item != null) {
-                    queueTask(item);
-                    try {
-                        Thread.sleep(delay);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
+        while (shouldRun) if (!paused) {
+            Item item = itemQueue.pollLast();
+            if (item != null) {
+                queueTask(item);
+                try {
+                    onSpinWait();
+                    Thread.sleep(delay);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 }
             }
-            onSpinWait();
         }
     }
     public void purgeQueue(){
@@ -95,22 +94,16 @@ public class DelayedThreadQueue extends Thread{
             if(!avgCached)
                 Thread.sleep(400);
             //if the item is new or has too few orders, try to get orders from a shorter time span
-            if(orderPrices.size() < 60){
-                orderPrices = MarketAPI.getPrices48Hours(name);
-            }
+            if (orderPrices.size() < 60) orderPrices = MarketAPI.getPrices48Hours(name);
             String trendName = "Even";
             if(trend == -1)
                 trendName = "Decreasing";
             else if(trend == 1)
                 trendName = "Increasing";
             Integer profit = null;
-            if (order.left != null && order.right != null) {
+            if (order.left != null && order.right != null)
                 profit = (int) Math.max(order.left.price - order.right.price, Math.min(avg90d, avg48h) - order.right.price);
-            } else {
-                if(order.right != null){
-                    profit = (int) Math.min(avg90d, avg48h) - order.right.price;
-                }
-            }
+            else if (order.right != null) profit = (int) Math.min(avg90d, avg48h) - order.right.price;
 
             item.buyOrder = order.left;
             item.sellOrder = order.right;
@@ -122,6 +115,8 @@ public class DelayedThreadQueue extends Thread{
             item.avg48h = avg48h;
             item.avg90d = avg90d;
             item.orderCount = orderPrices.size();
+
+            if (item.tracked && item.sellPrice <= item.trackValue) Toolkit.getDefaultToolkit().beep();
 
             app.getWindow().getTableModel().getDataVector().set(item.location, item);
             app.getWindow().getTableModel().fireTableRowsUpdated(item.location, item.location);
