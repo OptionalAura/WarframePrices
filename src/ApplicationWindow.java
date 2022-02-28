@@ -15,12 +15,18 @@
  */
 
 import javax.swing.*;
+import javax.swing.border.BevelBorder;
+import javax.swing.border.Border;
+import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.IOException;
+import java.io.Serial;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -40,6 +46,7 @@ public class ApplicationWindow extends JFrame {
     private static final HashMap<Integer, HashMap<String, Color>> themes;
 
     static {
+        //todo invert the order of the map to reduce unneeded duplicates
         themes = new HashMap<>();
         HashMap<String, Color> dark = new HashMap<>();
         dark.put("primaryBackground", Color.decode("#313131"));
@@ -66,14 +73,16 @@ public class ApplicationWindow extends JFrame {
     public TableRowSorter<SearchableTableModel<Item>> tableSorter;
     GridBagLayout gbl;
     GridBagConstraints gbc;
-    private JPanel mainPanel;
     JButton saveButton;
     JCheckBox showTrackedOnly;
     JPopupMenu popupMenu;
     JMenuItem trackItem;
     JMenuItem trackValue;
-    //TODO Rename this to something actually memorable
+    JMenuItem openWikiMenuButton;
+    JMenuItem openMarketMenuButton;
+    private JPanel mainPanel;
     private JTable table;
+    private JScrollPane tableContainer;
     private SearchableTableModel<Item> tableModel;
 
     /**
@@ -108,12 +117,15 @@ public class ApplicationWindow extends JFrame {
         saveButton = new JButton("Save");
         showTrackedOnly = new JCheckBox();
         tableModel = new SearchableTableModel<Item>(new String[]{"Name", "Buy Price", "Sell Price", "Profit", "Average Price (48h)",
-                "Average Price " + "(90d)", "Trend", "Orders", "Profitable?", "Relics", "Tags", "Ducats", "Ducats/Plat"}, 0) {
+                "Average Price " + "(90d)", "Trend", "Orders", "Profitable?", "Relics", "Tags", "Ducats", "Ducats/Plat"}) {
+            @Serial
+            private static final long serialVersionUID = -6010753805008294069L;
+
             //todo allow permissive filters rather than exclusive (i.e show things that match A & B, but also show things that match A || B)
             @Override
             public boolean filter(Item item) {
-                if (showTrackedOnly.isSelected()) return item.tracked;
-                if (getSearchText().isBlank()) return true;
+                if (getSearchText().isBlank() && !showTrackedOnly.isSelected()) return true;
+                else if (getSearchText().isBlank()) return item.tracked;
                 boolean shouldShow = true;
                 String[] conditions = getSearchText().trim().split(",");
                 for (String value : conditions) {
@@ -130,13 +142,21 @@ public class ApplicationWindow extends JFrame {
                         valid = true;
                     if (shouldShow) shouldShow = valid != inverted;
                 }
-
-                return shouldShow;
+                if (showTrackedOnly.isSelected()) {
+                    return shouldShow && item.tracked;
+                } else {
+                    return shouldShow;
+                }
             }
 
             @Override
             public Class<?> getColumnClass(int columnIndex) {
                 return Item.getColumnClass(columnIndex);
+            }
+
+            @Override
+            public Object getValueAt(int rowIndex, int columnIndex) {
+                return getDataVector().get(rowIndex).getValueAt(columnIndex);
             }
 
             public Item getItemAt(int rowIndex) {
@@ -146,11 +166,6 @@ public class ApplicationWindow extends JFrame {
             public Item getItemFromAbsoluteIndex(int rowIndex) {
                 return getDataVector().get(rowIndex);
             }
-
-            @Override
-            public Object getValueAt(int rowIndex, int columnIndex) {
-                return getDataVector().get(rowIndex).getValueAt(columnIndex);
-            }
         };
 
         tableSorter = new TableRowSorter<>(tableModel);
@@ -159,17 +174,49 @@ public class ApplicationWindow extends JFrame {
             try {
                 File f = new File("search.csv");
                 CSVWriter writer = new CSVWriter(f);
-                for (Item i : items) writer.writeObject(i);
+                for (int i = 0; i < items.size(); i++) {
+                    if (i == 0) {
+                        writer.writeObjectHeader(Item.class);
+                    }
+                    writer.writeObject(items.get(i));
+                }
                 writer.flush();
                 writer.close();
             } catch (IOException ex) {
                 ex.printStackTrace();
             }
         });
-        table = new JTable(tableModel);
+        table = new JTable(tableModel) {
+            @Override
+            public Component prepareRenderer(TableCellRenderer renderer, int row, int column) {
+                Component comp = super.prepareRenderer(renderer, row, column);
+                if (row % 2 == 0) {
+                    comp.setBackground(table.getBackground().brighter());
+                } else {
+                    comp.setBackground(table.getBackground());
+                }
+                return comp;
+            }
+
+        };
+        tableContainer = new JScrollPane(table);
         table.setRowSorter(tableSorter);
         popupMenu = new JPopupMenu();
         trackValue = new JMenuItem("Tracked Value: ");
+        trackValue.addActionListener(e -> {
+            int rowAtPoint = table.getSelectedRow();
+            if (rowAtPoint >= 0) {
+                Item item = tableModel.getDataVector().get(table.convertRowIndexToModel(rowAtPoint));
+                int lastValue = item.trackValue;
+                item.tracked = true;
+                String input;
+                do {
+                    input = JOptionPane.showInputDialog("Enter Target Price");
+                    if (input == null) break;
+                } while (input.isBlank() || !input.matches("^[0-9]*$"));
+                item.trackValue = input == null ? lastValue : Integer.parseInt(input);
+            }
+        });
         trackItem = new JMenuItem("Track");
         trackItem.addActionListener(e -> {
             int rowAtPoint = table.getSelectedRow();
@@ -185,6 +232,40 @@ public class ApplicationWindow extends JFrame {
                 }
             }
         });
+        openWikiMenuButton = new JMenuItem("Wiki");
+        openWikiMenuButton.addActionListener(e -> {
+            int rowAtPoint = table.getSelectedRow();
+            if (rowAtPoint >= 0) {
+                Item item = tableModel.getDataVector().get(table.convertRowIndexToModel(rowAtPoint));
+                if (item.wikiLink != null) {
+                    if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+                        try {
+                            Desktop.getDesktop().browse(new URI(item.wikiLink));
+                        } catch (IOException | URISyntaxException ex) {
+                            ex.printStackTrace();
+                        }
+                    }
+                }
+            }
+        });
+        openMarketMenuButton = new JMenuItem("Market");
+        openMarketMenuButton.addActionListener(e -> {
+            int rowAtPoint = table.getSelectedRow();
+            if (rowAtPoint >= 0) {
+                Item item = tableModel.getDataVector().get(table.convertRowIndexToModel(rowAtPoint));
+                if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+                    try {
+                        Desktop.getDesktop().browse(new URI(MarketAPI.ITEMS_MARKET_URL + "/" + item.url));
+                    } catch (IOException | URISyntaxException ex) {
+                        ex.printStackTrace();
+                    }
+                }
+            }
+        });
+        popupMenu.add(trackValue);
+        popupMenu.add(trackItem);
+        popupMenu.add(openWikiMenuButton);
+        popupMenu.add(openMarketMenuButton);
         table.addMouseListener(new MouseAdapter() {
             public void mouseReleased(MouseEvent e) {
                 if (e.isPopupTrigger()) {
@@ -203,21 +284,23 @@ public class ApplicationWindow extends JFrame {
                         trackValue.setVisible(false);
                         trackItem.setText("Track");
                     }
+                    openWikiMenuButton.setVisible(item.wikiLink != null);
                     popupMenu.show(e.getComponent(), e.getX(), e.getY());
                 }
             }
         });
-        popupMenu.add(trackValue);
-        popupMenu.add(trackItem);
         tableSorter.setRowFilter(tableModel.filter);
     }
 
+    /**
+     * Lays out the components
+     */
     private void layoutComponents() {
         this.add(mainPanel);
         //set base properties of the layout
         gbl = new GridBagLayout();
         gbc = new GridBagConstraints();
-        gbl.columnWeights = new double[]{1.0, 0, 0.3};
+        gbl.columnWeights = new double[]{1.0, 0.2, 0.05};
         gbl.rowWeights = new double[]{0.0, 1.0};
         gbl.rowHeights = new int[]{30};
         mainPanel.setLayout(gbl);
@@ -225,19 +308,20 @@ public class ApplicationWindow extends JFrame {
         gbc.gridx = 0;
         gbc.gridy = 0;
         gbc.fill = GridBagConstraints.BOTH;
+        gbc.anchor = GridBagConstraints.CENTER;
 
         //add components
         mainPanel.add(searchBar, gbc);
         gbc.gridx++;
         mainPanel.add(saveButton, gbc);
         gbc.gridx++;
+        gbc.fill = GridBagConstraints.NONE;
         mainPanel.add(showTrackedOnly, gbc);
+        gbc.fill = GridBagConstraints.BOTH;
         gbc.gridx = 0;
         gbc.gridy++;
         gbc.gridwidth = 3;
-        gbc.fill = GridBagConstraints.BOTH;
-        mainPanel.add(new JScrollPane(table), gbc);
-        //mainPanel.add(table, gbc);
+        mainPanel.add(tableContainer, gbc);
     }
 
     /**
@@ -247,19 +331,43 @@ public class ApplicationWindow extends JFrame {
      * @see #STYLE_LIGHT
      */
     public void styleComponents(int style) {
+        Border noBorder = BorderFactory.createEmptyBorder();
+
         this.setBackground(themes.get(style).get("primaryBackground"));
         this.setBackground(themes.get(style).get("primaryForeground"));
 
         mainPanel.setBackground(themes.get(style).get("primaryBackground"));
         mainPanel.setForeground(themes.get(style).get("primaryForeground"));
 
-
         searchBar.setFont(new Font("Segoe UI", Font.PLAIN, 16));
         searchBar.setBackground(themes.get(style).get("secondaryBackground"));
         searchBar.setForeground(themes.get(style).get("secondaryForeground"));
+        searchBar.setBorder(BorderFactory.createSoftBevelBorder(BevelBorder.LOWERED, themes.get(style)
+                .get("secondaryBackground")
+                .brighter(), themes.get(style).get("secondaryBackground").darker()));
+
         table.setBackground(themes.get(style).get("tableBackground"));
         table.setForeground(themes.get(style).get("tableForeground"));
         table.setGridColor(themes.get(style).get("tableBorders"));
+        table.setBorder(noBorder);
+
+        tableContainer.setBackground(themes.get(style).get("tableBackground"));
+        tableContainer.setForeground(themes.get(style).get("tableForeground"));
+        tableContainer.setBorder(noBorder);
+        tableContainer.setViewportBorder(noBorder);
+
+        tableContainer.getVerticalScrollBar().setBackground(themes.get(style).get("tableBackground"));
+        tableContainer.getVerticalScrollBar().setForeground(themes.get(style).get("tableBackground"));
+        tableContainer.getVerticalScrollBar().setBorder(noBorder);
+
+
+        saveButton.setBackground(themes.get(style).get("secondaryBackground"));
+        saveButton.setForeground(themes.get(style).get("secondaryForeground"));
+        saveButton.setBorder(noBorder);
+
+        showTrackedOnly.setBackground(themes.get(style).get("secondaryBackground"));
+        showTrackedOnly.setForeground(themes.get(style).get("secondaryForeground"));
+        showTrackedOnly.setBorder(noBorder);
     }
 
     public SearchableTableModel<Item> getTableModel() {

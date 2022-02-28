@@ -29,10 +29,12 @@ import java.util.List;
 
 public class MarketAPI {
     //TODO store information about how many orders are available to determine what to check first
-    public static final String ApiUrl = "https://api.warframe.market/v1";
-    public static final String ItemsUrl = ApiUrl + "/items";
-    public static final String OrdersUrl = "/orders?include=item";
-    public static final String StatisticsUrl = "/statistics?include=item";
+    public static final String API_URL = "https://api.warframe.market/v1";
+    public static final String MARKET_URL = "https://warframe.market";
+    public static final String ITEMS_MARKET_URL = MARKET_URL + "/items";
+    public static final String ITEMS_API_URL = API_URL + "/items";
+    public static final String ORDERS_URL = "/orders?include=item";
+    public static final String STATISTICS_URL = "/statistics?include=item";
     public static HashMap<String, HashMap<String, ArrayList<Double>>> averagePriceCache = new HashMap<>();
     static HashMap<String, String> itemURLS = new HashMap<>();
     static List<String> itemNames = new ArrayList<>();
@@ -65,8 +67,8 @@ public class MarketAPI {
     }
 
     public static JSONObject getObject(String name) throws IOException {
-        return new JSONObject(MarketAPI.GET(new URL(MarketAPI.ItemUrl(name) +
-                OrdersUrl), new Request("accept", "application/json"), new Request("Platform", "pc")));
+        return new JSONObject(MarketAPI.GET(new URL(
+                MarketAPI.ItemApiUrl(name) + ORDERS_URL), new Request("accept", "application/json"), new Request("Platform", "pc")));
     }
 
 
@@ -86,8 +88,8 @@ public class MarketAPI {
         return sb.toString();
     }
 
-    public static String ItemUrl(String name) {
-        return ItemsUrl + "/" + itemURLS.get(name);
+    public static String ItemApiUrl(String name) {
+        return ITEMS_API_URL + "/" + itemURLS.get(name);
     }
 
     public static Structure.Order getBestBuyOffer(String name) throws IOException {
@@ -165,8 +167,8 @@ public class MarketAPI {
     }
 
     public static JSONObject getItemStatistics(String name) throws IOException {
-        JSONObject obj = new JSONObject(MarketAPI.GET(new URL(MarketAPI.ItemUrl(name) +
-                StatisticsUrl), new MarketAPI.Request("accept", "application/json"), new MarketAPI.Request("Platform", "pc")));
+        JSONObject obj = new JSONObject(MarketAPI.GET(new URL(MarketAPI.ItemApiUrl(name) +
+                STATISTICS_URL), new MarketAPI.Request("accept", "application/json"), new MarketAPI.Request("Platform", "pc")));
         return (JSONObject) ((JSONObject) obj.get("payload")).get("statistics_closed");
     }
 
@@ -274,11 +276,10 @@ public class MarketAPI {
                 String url = JSONItem.getString("url_name");
                 itemURLS.put(name, url);
                 itemNames.add(name);
-                Item item = new Item(name, i);
-                Item.register(item);
             }
             itemNames.sort(Comparator.naturalOrder());
         } catch (Exception e) {
+            System.out.println("This was the error");
             e.printStackTrace();
         }
     }

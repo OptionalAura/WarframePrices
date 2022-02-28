@@ -20,7 +20,7 @@ public class RunOnceAfterDelayThread extends Thread{
     volatile boolean running = false;
     long buffer;
     volatile long timer;
-    //todo figure out wtf I'm doing with this class because it could be made so much better
+    //todo rewrite this entire class because it's poorly written
     /**
      * Constructor
      * @param buffer

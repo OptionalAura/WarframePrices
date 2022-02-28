@@ -22,12 +22,13 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 public class Application {
-    private final DelayedThreadQueue allItems;
-    private final DelayedThreadQueue searchedItems;
+    public final DelayedThreadQueue allItems;
+    public final DelayedThreadQueue searchedItems;
     private RunOnceAfterDelayThread loadSearchedItems;
     private ApplicationWindow window;
     private boolean initialized = false;
     private static final File storageFile = new File("src\\items.bin");
+
     public Application() {
         allItems = new DelayedThreadQueue(0, this);
         searchedItems = new DelayedThreadQueue(0, this);
@@ -57,7 +58,7 @@ public class Application {
             public void keyReleased(KeyEvent e) {
                 window.getTableModel().setSearchText(window.searchBar.getText());
                 window.getTableModel().fireTableDataChanged();
-                if (window.searchBar.getText().isBlank()) {
+                if (window.searchBar.getText().isBlank() && !window.showTrackedOnly.isSelected()) {
                     searchedItems.purgeQueue();
                     searchedItems.setPaused(true);
                     allItems.setPaused(false);
@@ -125,20 +126,6 @@ public class Application {
                 oos.close();
 
             }
-            /*
-            ArrayDeque<Item> queue = allItems.getQueue();
-            int size = queue.size();
-            for(int i = 0; i < size; i++){
-                Item item = queue.();
-                System.out.println(item.name);
-                //sets the initialized items to be updated last. Useful for first-time setup of items
-                if(item.relics != null){
-                    System.out.println(item.name + " was initialized");
-                    queue.removeLast();
-                    queue.addFirst(item);
-                }
-            }*/
-            //todo make this work
         } catch (Exception e) {
             e.printStackTrace();
         }

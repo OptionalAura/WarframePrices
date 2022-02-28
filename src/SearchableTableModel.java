@@ -44,11 +44,14 @@ public abstract class SearchableTableModel<T> extends AbstractTableModel {
             return filter(item);
         }
     };
+
     public abstract boolean filter(T object);
-    public SearchableTableModel(String[] columnNames, int i) {
+
+    public SearchableTableModel(String[] columnNames) {
         setDataVector(null, List.of(columnNames));
         init();
     }
+
     public String getColumnName(int column) {
         String id = null;
 
@@ -102,24 +105,28 @@ public abstract class SearchableTableModel<T> extends AbstractTableModel {
      */
     @Override
     public abstract Object getValueAt(int rowIndex, int columnIndex);
-    public void setDataVector(List<T> dataVector) {
-        this.tableData = nonNullArrayList(dataVector);
-        fireTableStructureChanged();
-    }
-    public void setDataVector(List<T> dataVector,
-                              List<String> columnIdentifiers) {
+
+    public void setDataVector(List<T> dataVector, List<String> columnIdentifiers) {
         this.tableData = nonNullArrayList(dataVector);
         this.columnNames = nonNullArrayList(columnIdentifiers);
+        fireTableDataChanged();
         fireTableStructureChanged();
     }
 
-    public final List<T> getDataVector(){
+    public final List<T> getDataVector() {
         return this.tableData;
     }
-    public void addRow(T row){
-        this.tableData.add(row);
-        fireTableRowsInserted(tableData.size()-1, tableData.size()-1);
+
+    public void setDataVector(List<T> dataVector) {
+        this.tableData = nonNullArrayList(dataVector);
+        fireTableDataChanged();
     }
+
+    public void addRow(T row) {
+        this.tableData.add(row);
+        fireTableRowsInserted(tableData.size() - 1, tableData.size() - 1);
+    }
+
     private static <E> List<E> nonNullArrayList(List<E> v) {
         return (v != null) ? v : new ArrayList<>();
     }

@@ -35,8 +35,13 @@ public class CSVWriter {
         fw.write("\n".getBytes());
     }
 
+    public void writeObjectHeader(Class<? extends CSVable> clazz) throws IOException {
+        fw.write(CSVable.getCsvHeader(clazz).getBytes());
+        fw.write("\n".getBytes());
+    }
+
     public void writeObject(CSVable obj) throws IOException {
-        fw.write(obj.toCSV().getBytes());
+        fw.write(obj.toCsv().getBytes());
         fw.write("\n".getBytes());
     }
 

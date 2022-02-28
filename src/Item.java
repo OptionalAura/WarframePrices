@@ -19,22 +19,28 @@ import org.json.JSONObject;
 
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.HashMap;
 
 @SuppressWarnings("SerializableHasSerializationMethods")
 public class Item implements Serializable, CSVable {
     @Serial
-    private static final long serialVersionUID = 5;
-    public static HashMap<String, Item> items = new HashMap<>();
+    private static transient final long serialVersionUID = 5;
 
     //mandatory parameters
+    @CSVInclude("Item Name")
     public String name;
+    @CSVInclude("API Name")
     public String url;
+    @CSVInclude("Tags")
     public String[] tags;
+    @CSVInclude("Warframe Wiki")
     public transient String wikiLink;
+    public boolean tracked;
+    public int trackValue = 0;
 
     //for prime items
+    @CSVInclude("Relic Sources")
     public String[] relics;
+    @CSVInclude("Ducat Value")
     public Integer ducats;
 
     //for mods
@@ -53,7 +59,9 @@ public class Item implements Serializable, CSVable {
     transient Integer buyPrice;
     transient Integer sellPrice;
     transient boolean goodBuy;
+    @CSVInclude("90 Day Average")
     Double avg90d;
+    @CSVInclude("48 Hour Average")
     Double avg48h;
 
     public Item(JSONObject obj) {
@@ -73,7 +81,14 @@ public class Item implements Serializable, CSVable {
 
         //base data
         this.name = en.getString("item_name");
-        //this.wikiLink = en.getString("wiki_link");
+        if (en.has("wiki_link")) {
+            try {
+                Object wikiLink = en.get("wiki_link");
+                if (wikiLink instanceof String) this.wikiLink = (String) wikiLink;
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
         this.url = thisItem.getString("url_name");
 
         //define tags
@@ -115,10 +130,12 @@ public class Item implements Serializable, CSVable {
         initialized = false;
     }
 
-    public static void register(Item item) {
-        items.put(item.name, item);
-    }
-
+    /**
+     * Gets the class that should be displayed in the table
+     *
+     * @param columnIndex
+     * @return
+     */
     public static Class<?> getColumnClass(int columnIndex) {
         return switch (columnIndex) {
             case 0, 6, 9, 10 -> String.class;
@@ -129,6 +146,12 @@ public class Item implements Serializable, CSVable {
         };
     }
 
+    /**
+     * Converts the item into a table entry based on the "column" to show
+     *
+     * @param columnIndex
+     * @return
+     */
     public Object getValueAt(int columnIndex) {
         return switch (columnIndex) {
             default -> this;
@@ -155,8 +178,13 @@ public class Item implements Serializable, CSVable {
         return ducats / (double) sellPrice;
     }
 
+    // @Override
+    // public String toCSV() {
+    //     return this.name + "," + this.avg90d + "," + this.avg48h;
+    // }
+
     @Override
-    public String toCSV() {
-        return this.name + "," + this.avg90d + "," + this.avg48h;
+    public String fromCSV() {
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 }

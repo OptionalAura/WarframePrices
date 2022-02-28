@@ -52,7 +52,6 @@ public class DelayedThreadQueue extends Thread{
             if (item != null) {
                 queueTask(item);
                 try {
-                    onSpinWait();
                     Thread.sleep(delay);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
@@ -73,7 +72,7 @@ public class DelayedThreadQueue extends Thread{
         shouldRun = false;
     }
     public void queueTask(Item item){
-        MarketAPI.Pair<Structure.Order> order = null;
+        MarketAPI.Pair<Structure.Order> order;
         try {
             String name = item.name;
             int loc = item.location;
@@ -116,7 +115,7 @@ public class DelayedThreadQueue extends Thread{
             item.avg90d = avg90d;
             item.orderCount = orderPrices.size();
 
-            if (item.tracked && item.sellPrice <= item.trackValue) Toolkit.getDefaultToolkit().beep();
+            if (item.tracked && item.sellPrice != null && item.sellPrice <= item.trackValue) Toolkit.getDefaultToolkit().beep();
 
             app.getWindow().getTableModel().getDataVector().set(item.location, item);
             app.getWindow().getTableModel().fireTableRowsUpdated(item.location, item.location);
