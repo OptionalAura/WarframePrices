@@ -56,6 +56,8 @@ public class ApplicationWindow extends JFrame {
         dark.put("tableBackground", dark.get("secondaryBackground"));
         dark.put("tableForeground", dark.get("primaryForeground"));
         dark.put("tableBorders", dark.get("primaryBackground"));
+        dark.put("tableSelectionBackground", Color.decode("#1D66A0"));
+        dark.put("tableSelectionForeground", Color.decode("#000000"));
 
         themes.put(STYLE_DARK, dark);
         HashMap<String, Color> light = new HashMap<>();
@@ -66,6 +68,8 @@ public class ApplicationWindow extends JFrame {
         light.put("tableBackground", light.get("secondaryBackground"));
         light.put("tableForeground", light.get("primaryForeground"));
         light.put("tableBorders", light.get("primaryBackground"));
+        light.put("tableSelectionBackground", Color.decode("#38A1F3"));
+        light.put("tableSelectionForeground", Color.decode("#000000"));
         themes.put(STYLE_LIGHT, light);
     }
 
@@ -74,14 +78,17 @@ public class ApplicationWindow extends JFrame {
     GridBagLayout gbl;
     GridBagConstraints gbc;
     JButton saveButton;
+
+    public JTable table;
     JCheckBox showTrackedOnly;
     JPopupMenu popupMenu;
     JMenuItem trackItem;
     JMenuItem trackValue;
     JMenuItem openWikiMenuButton;
     JMenuItem openMarketMenuButton;
+    JButton pauseButton;
     private JPanel mainPanel;
-    private JTable table;
+    JMenuItem updateMenuButton;
     private JScrollPane tableContainer;
     private SearchableTableModel<Item> tableModel;
 
@@ -103,7 +110,7 @@ public class ApplicationWindow extends JFrame {
     private void init(final int width, int height) {
         this.setPreferredSize(new Dimension(width, height));
         this.setSize(new Dimension(width, height));
-        this.setMinimumSize(new Dimension(100, 80));
+        this.setMinimumSize(new Dimension(400, 300));
         this.setLocationRelativeTo(null);
         this.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
     }
@@ -115,9 +122,9 @@ public class ApplicationWindow extends JFrame {
         mainPanel = new JPanel();
         searchBar = new JTextField();
         saveButton = new JButton("Save");
+        pauseButton = new JButton("Pause");
         showTrackedOnly = new JCheckBox();
-        tableModel = new SearchableTableModel<Item>(new String[]{"Name", "Buy Price", "Sell Price", "Profit", "Average Price (48h)",
-                "Average Price " + "(90d)", "Trend", "Orders", "Profitable?", "Relics", "Tags", "Ducats", "Ducats/Plat"}) {
+        tableModel = new SearchableTableModel<Item>(new String[]{"Name", "Buy Price", "Sell Price", "Profit", "Average Price (48h)", "Average Price (90d)", "Trend", "Orders", "Profitable?", "Relics", "Tags", "Ducats", "Ducats/Plat", "Owned", "Should Sell"}) {
             @Serial
             private static final long serialVersionUID = -6010753805008294069L;
 
@@ -167,7 +174,6 @@ public class ApplicationWindow extends JFrame {
                 return getDataVector().get(rowIndex);
             }
         };
-
         tableSorter = new TableRowSorter<>(tableModel);
         saveButton.addActionListener(e -> {
             List<Item> items = tableModel.getDataVector().stream().filter(item -> tableModel.filter(item)).toList();
@@ -182,26 +188,39 @@ public class ApplicationWindow extends JFrame {
                 }
                 writer.flush();
                 writer.close();
-            } catch (IOException ex) {
+            } catch (Exception ex) {
                 ex.printStackTrace();
             }
         });
+
         table = new JTable(tableModel) {
             @Override
             public Component prepareRenderer(TableCellRenderer renderer, int row, int column) {
+                //System.out.println("Row: " + row + "\nColumn: " + column + "\n" + renderer + "\n----------------");
                 Component comp = super.prepareRenderer(renderer, row, column);
-                if (row % 2 == 0) {
-                    comp.setBackground(table.getBackground().brighter());
-                } else {
-                    comp.setBackground(table.getBackground());
+                Color background = table.getBackground(), foreground = table.getForeground();
+                boolean selected = Arrays.stream(table.getSelectedRows()).anyMatch((r) -> r == row);
+                if (selected) {
+                    background = table.getSelectionBackground();
+                    foreground = table.getSelectionForeground();
                 }
+                if (row % 2 == 0) {
+                    background = background.brighter();
+                }
+                comp.setBackground(background);
+                comp.setForeground(foreground);
                 return comp;
             }
 
         };
+        //table.removeColumn(table.getColumn("Trend"));
+        //table.removeColumn(table.getColumn("Profitable?"));
+        //table.removeColumn(table.getColumn("Orders"));
+
         tableContainer = new JScrollPane(table);
         table.setRowSorter(tableSorter);
         popupMenu = new JPopupMenu();
+        updateMenuButton = new JMenuItem("Update");
         trackValue = new JMenuItem("Tracked Value: ");
         trackValue.addActionListener(e -> {
             int rowAtPoint = table.getSelectedRow();
@@ -211,7 +230,7 @@ public class ApplicationWindow extends JFrame {
                 item.tracked = true;
                 String input;
                 do {
-                    input = JOptionPane.showInputDialog("Enter Target Price");
+                    input = JOptionPane.showInputDialog(tableContainer, "Enter Target Price");
                     if (input == null) break;
                 } while (input.isBlank() || !input.matches("^[0-9]*$"));
                 item.trackValue = input == null ? lastValue : Integer.parseInt(input);
@@ -224,11 +243,16 @@ public class ApplicationWindow extends JFrame {
                 Item item = tableModel.getDataVector().get(table.convertRowIndexToModel(rowAtPoint));
                 if (item.tracked) item.tracked = false;
                 else {
-                    item.tracked = true;
                     String input;
-                    do input = JOptionPane.showInputDialog("Enter Target Price"); while (input == null || input.isBlank() ||
-                            !input.matches("^[0-9]*$"));
-                    item.trackValue = Integer.parseInt(input);
+                    do {
+                        input = JOptionPane.showInputDialog(tableContainer, "Enter Target Price");
+
+                        if (input == null) break;
+                    } while (input.isBlank() || !input.matches("^[0-9]*$"));
+                    if (input != null) {
+                        item.tracked = true;
+                        item.trackValue = Integer.parseInt(input);
+                    }
                 }
             }
         });
@@ -262,6 +286,7 @@ public class ApplicationWindow extends JFrame {
                 }
             }
         });
+        popupMenu.add(updateMenuButton);
         popupMenu.add(trackValue);
         popupMenu.add(trackItem);
         popupMenu.add(openWikiMenuButton);
@@ -275,17 +300,31 @@ public class ApplicationWindow extends JFrame {
 
                     if (!source.isRowSelected(row)) source.changeSelection(row, column, false, false);
 
-                    Item item = tableModel.getDataVector().get(table.convertRowIndexToModel(table.rowAtPoint(e.getPoint())));
-                    if (item.tracked) {
-                        trackValue.setVisible(true);
-                        trackValue.setText("Tracked Value: " + item.trackValue);
-                        trackItem.setText("Untrack");
+                    int index = table.rowAtPoint(e.getPoint());
+                    if (source.getSelectedRows().length == 1) {
+                        trackItem.setVisible(true);
+                        openWikiMenuButton.setVisible(true);
+                        openMarketMenuButton.setVisible(true);
+                        if (index >= 0 && index < tableModel.getDataVector().size()) {
+                            Item item = tableModel.getDataVector().get(table.convertRowIndexToModel(index));
+                            if (item.tracked) {
+                                trackValue.setVisible(true);
+                                trackValue.setText("Tracked Value: " + item.trackValue);
+                                trackItem.setText("Untrack");
+                            } else {
+                                trackValue.setVisible(false);
+                                trackItem.setText("Track");
+                            }
+                            openWikiMenuButton.setVisible(item.wikiLink != null);
+                            popupMenu.show(e.getComponent(), e.getX(), e.getY());
+                        }
                     } else {
                         trackValue.setVisible(false);
-                        trackItem.setText("Track");
+                        trackItem.setVisible(false);
+                        //openWikiMenuButton.setVisible(false);
+                        openMarketMenuButton.setVisible(false);
+                        popupMenu.show(e.getComponent(), e.getX(), e.getY());
                     }
-                    openWikiMenuButton.setVisible(item.wikiLink != null);
-                    popupMenu.show(e.getComponent(), e.getX(), e.getY());
                 }
             }
         });
@@ -300,7 +339,7 @@ public class ApplicationWindow extends JFrame {
         //set base properties of the layout
         gbl = new GridBagLayout();
         gbc = new GridBagConstraints();
-        gbl.columnWeights = new double[]{1.0, 0.2, 0.05};
+        gbl.columnWeights = new double[]{0.5, 0.1, 0.05, 0.05};
         gbl.rowWeights = new double[]{0.0, 1.0};
         gbl.rowHeights = new int[]{30};
         mainPanel.setLayout(gbl);
@@ -318,9 +357,21 @@ public class ApplicationWindow extends JFrame {
         gbc.fill = GridBagConstraints.NONE;
         mainPanel.add(showTrackedOnly, gbc);
         gbc.fill = GridBagConstraints.BOTH;
+        gbc.gridx++;
+        mainPanel.add(pauseButton, gbc);
+
+        saveButton.setMinimumSize(new Dimension(70, 30));
+        saveButton.setPreferredSize(new Dimension(70, 30));
+        saveButton.setMaximumSize(new Dimension(70, 30));
+        saveButton.setSize(new Dimension(70, 30));
+        pauseButton.setMinimumSize(new Dimension(70, 30));
+        pauseButton.setPreferredSize(new Dimension(70, 30));
+        pauseButton.setMaximumSize(new Dimension(70, 30));
+        pauseButton.setSize(new Dimension(70, 30));
+
         gbc.gridx = 0;
         gbc.gridy++;
-        gbc.gridwidth = 3;
+        gbc.gridwidth = 4;
         mainPanel.add(tableContainer, gbc);
     }
 
@@ -350,6 +401,8 @@ public class ApplicationWindow extends JFrame {
         table.setForeground(themes.get(style).get("tableForeground"));
         table.setGridColor(themes.get(style).get("tableBorders"));
         table.setBorder(noBorder);
+        table.setSelectionBackground(themes.get(style).get("tableSelectionBackground"));
+        table.setSelectionForeground(themes.get(style).get("tableSelectionForeground"));
 
         tableContainer.setBackground(themes.get(style).get("tableBackground"));
         tableContainer.setForeground(themes.get(style).get("tableForeground"));
@@ -364,6 +417,10 @@ public class ApplicationWindow extends JFrame {
         saveButton.setBackground(themes.get(style).get("secondaryBackground"));
         saveButton.setForeground(themes.get(style).get("secondaryForeground"));
         saveButton.setBorder(noBorder);
+
+        pauseButton.setBackground(themes.get(style).get("secondaryBackground"));
+        pauseButton.setForeground(themes.get(style).get("secondaryForeground"));
+        pauseButton.setBorder(noBorder);
 
         showTrackedOnly.setBackground(themes.get(style).get("secondaryBackground"));
         showTrackedOnly.setForeground(themes.get(style).get("secondaryForeground"));

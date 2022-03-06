@@ -28,7 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 
 public class MarketAPI {
-    //TODO store information about how many orders are available to determine what to check first
+    //todo reduce network usage
     public static final String API_URL = "https://api.warframe.market/v1";
     public static final String MARKET_URL = "https://warframe.market";
     public static final String ITEMS_MARKET_URL = MARKET_URL + "/items";
@@ -71,7 +71,7 @@ public class MarketAPI {
                 MarketAPI.ItemApiUrl(name) + ORDERS_URL), new Request("accept", "application/json"), new Request("Platform", "pc")));
     }
 
-
+    //todo make a pause feature to stop network usage
     public static String GET(URL address, Request... requests) throws IOException {
         StringBuilder sb = new StringBuilder();
         HttpsURLConnection httpsConnection = (HttpsURLConnection) address.openConnection();
@@ -85,6 +85,7 @@ public class MarketAPI {
         while ((line = br.readLine()) != null) {
             sb.append("\n").append(line);
         }
+        httpsConnection.disconnect();
         return sb.toString();
     }
 
@@ -191,8 +192,6 @@ public class MarketAPI {
         return getAveragePrice48Hours(name, false);
     }
 
-    //TODO make this contain null values if there are no orders
-
     /**
      * Gets the average price of an item over the last 48 hours. This may or may not use a cached value, depending on the <code>forceUpdate</code>
      * parameter and if a value is cached.
@@ -220,10 +219,11 @@ public class MarketAPI {
      * @return A pair containing the most optimal buy and sell order
      * @throws IOException if a connection to the host cannot be established
      */
-    public static Pair<Structure.Order> getBestBuyAndSellOrders(String name) throws IOException {
+    public static Pair<Structure.Order, Structure.Order> getBestBuyAndSellOrders(String name) throws IOException {
         return getBestBuyAndSellOrders(getObject(name));
     }
-    public static Pair<Structure.Order> getBestBuyAndSellOrders(JSONObject json) throws IOException {
+
+    public static Pair<Structure.Order, Structure.Order> getBestBuyAndSellOrders(JSONObject json) throws IOException {
         JSONArray orders = json.getJSONArray("orders");
 
         //buy
@@ -279,16 +279,15 @@ public class MarketAPI {
             }
             itemNames.sort(Comparator.naturalOrder());
         } catch (Exception e) {
-            System.out.println("This was the error");
             e.printStackTrace();
         }
     }
 
-    public static final class Pair<T> {
-        public final T left;
-        public final T right;
+    public static final class Pair<L, R> {
+        public final L left;
+        public final R right;
 
-        public Pair(T left, T right) {
+        public Pair(L left, R right) {
             this.left = left;
             this.right = right;
         }

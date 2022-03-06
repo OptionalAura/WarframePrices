@@ -19,8 +19,6 @@ import org.json.JSONObject;
 
 import java.io.Serial;
 import java.io.Serializable;
-
-@SuppressWarnings("SerializableHasSerializationMethods")
 public class Item implements Serializable, CSVable {
     @Serial
     private static transient final long serialVersionUID = 5;
@@ -28,41 +26,49 @@ public class Item implements Serializable, CSVable {
     //mandatory parameters
     @CSVInclude("Item Name")
     public String name;
-    @CSVInclude("API Name")
+    //@CSVInclude("API Name")
     public String url;
-    @CSVInclude("Tags")
+    //@CSVInclude("Tags")
     public String[] tags;
-    @CSVInclude("Warframe Wiki")
+    //@CSVInclude("Warframe Wiki")
     public transient String wikiLink;
     public boolean tracked;
     public int trackValue = 0;
-
     //for prime items
-    @CSVInclude("Relic Sources")
+    //@CSVInclude("Relic Sources")
     public String[] relics;
+    //keeps track of if this was initialized with JSON or not
+    public transient boolean initialized;
+    @CSVInclude("90 Day Average")
+    Double avg90d;
     @CSVInclude("Ducat Value")
     public Integer ducats;
+
 
     //for mods
     public Integer maxRank;
     public Integer orderCount;
-
-    //keeps track of if this was initialized with JSON or not
-    public boolean initialized;
+    @CSVInclude("48 Hour Average")
+    Double avg48h;
 
     //data for the table
     transient int location;
     transient Structure.Order buyOrder;
     transient Structure.Order sellOrder;
     transient String trendName;
+    transient double trendValue;
     transient Integer profit;
     transient Integer buyPrice;
     transient Integer sellPrice;
     transient boolean goodBuy;
-    @CSVInclude("90 Day Average")
-    Double avg90d;
-    @CSVInclude("48 Hour Average")
-    Double avg48h;
+    @CSVInclude("Owned")
+    transient int owned;
+    @CSVInclude("In Set")
+    transient int itemsInSet;
+    @CSVInclude("Mastered")
+    transient boolean mastered;
+    //@CSVInclude("Should Sell")
+    transient boolean shouldSell;
 
     public Item(JSONObject obj) {
         JSONArray itemsInSet = obj.getJSONArray("items_in_set");
@@ -78,7 +84,6 @@ public class Item implements Serializable, CSVable {
         }
 
         JSONObject en = thisItem.getJSONObject("en");
-
         //base data
         this.name = en.getString("item_name");
         if (en.has("wiki_link")) {
@@ -95,24 +100,27 @@ public class Item implements Serializable, CSVable {
         JSONArray tagsJSON = thisItem.getJSONArray("tags");
         boolean prime = false;
         boolean mod = false;
-        tags = new String[tagsJSON.length()];
-        for (int i = 0; i < tagsJSON.length(); i++) {
-            tags[i] = tagsJSON.getString(i);
-            if (!prime && tags[i].equals("prime")) prime = true;
-            if (!mod && tags[i].equals("mod")) mod = true;
-        }
-        if (prime && !mod) {
-            //define ducat price
-            this.ducats = thisItem.getInt("ducats");
+        if (tagsJSON.length() > 0) {
+            tags = new String[tagsJSON.length()];
+            for (int i = 0; i < tagsJSON.length(); i++) {
+                tags[i] = tagsJSON.getString(i);
+                if (!prime && tags[i].equals("prime")) prime = true;
+                if (!mod && tags[i].equals("mod")) mod = true;
+            }
+            if (prime && !mod) {
+                //this.owned = WFInfo.getItemCount(name);
+                //define ducat price
+                this.ducats = thisItem.getInt("ducats");
 
-            //define drop data
-            JSONArray dropSources = en.getJSONArray("drop");
-            if (dropSources.length() != 0) {
-                this.relics = new String[dropSources.length()];
-                for (int i = 0; i < dropSources.length(); i++) {
-                    JSONObject dropSource = dropSources.getJSONObject(i);
-                    String name = dropSource.getString("name");
-                    this.relics[i] = name.substring(0, name.indexOf("Relic")-1);
+                //define drop data
+                JSONArray dropSources = en.getJSONArray("drop");
+                if (dropSources.length() != 0) {
+                    this.relics = new String[dropSources.length()];
+                    for (int i = 0; i < dropSources.length(); i++) {
+                        JSONObject dropSource = dropSources.getJSONObject(i);
+                        String name = dropSource.getString("name");
+                        this.relics[i] = name.substring(0, name.indexOf("Relic") - 1);
+                    }
                 }
             }
         }
@@ -139,7 +147,7 @@ public class Item implements Serializable, CSVable {
     public static Class<?> getColumnClass(int columnIndex) {
         return switch (columnIndex) {
             case 0, 6, 9, 10 -> String.class;
-            case 1, 2, 7, 11 -> Integer.class;
+            case 1, 2, 7, 11, 13, 14 -> Integer.class;
             case 3, 4, 5, 12 -> Double.class;
             case 8 -> Boolean.class;
             default -> Object.class;
@@ -153,7 +161,7 @@ public class Item implements Serializable, CSVable {
      * @return
      */
     public Object getValueAt(int columnIndex) {
-        return switch (columnIndex) {
+        Object val = switch (columnIndex) {
             default -> this;
             case 0 -> Utils.notNull(name, "undefined");
             case 1 -> Utils.notNull(buyPrice, 0);
@@ -166,25 +174,53 @@ public class Item implements Serializable, CSVable {
             case 8 -> Utils.notNull(goodBuy, false);
             case 9 -> Utils.notNull(Utils.arrayToString(relics), "");
             case 10 -> Utils.notNull(Utils.arrayToString(tags), "");
-            case 11 -> Utils.notNull(ducats, 0);
+            case 11 -> ducats;
             case 12 -> calculateDucatsPerPlat();
+            case 13 -> owned;
+            case 14 -> getSellCount();
         };
+        return val;
     }
 
-    private double calculateDucatsPerPlat() {
-        if (ducats == null || ducats == 0) return 0;
-        if (Utils.notNull(sellPrice, 0) == 0 && Utils.notNull(avg48h, 0d) == 0) return 0;
+    private Double calculateDucatsPerPlat() {
+        if (ducats == null || ducats == 0) return null;
+        if (Utils.notNull(sellPrice, 0) == 0 && Utils.notNull(avg48h, 0d) == 0) return 0d;
         if (Utils.notNull(sellPrice, 0) == 0) return ducats / avg48h;
         return ducats / (double) sellPrice;
     }
 
-    // @Override
-    // public String toCSV() {
-    //     return this.name + "," + this.avg90d + "," + this.avg48h;
-    // }
+    //todo factor sets into account
+    @CSVCalculate("Sell Count")
+    public int getSellCount() {
+        if (mastered) {
+            return owned;
+        } else if (owned > itemsInSet) {
+            return owned - itemsInSet;
+        } else {
+            return 0;
+        }
+    }
+
+    public boolean shouldSell() {
+        boolean shouldSell = true;
+        if (owned < 1) shouldSell = false;
+        else if (owned < 2 && !mastered) shouldSell = false;
+        else if ((profit != null && profit > 1) || (avg48h != null && avg48h < 7)) shouldSell = false;
+        else if (profit == null || avg48h == null) shouldSell = false;
+        else {
+            Double doucatsPerPlat = calculateDucatsPerPlat();
+            if (doucatsPerPlat != null && doucatsPerPlat > 6) {
+                shouldSell = false;
+            }
+        }
+
+        this.shouldSell = shouldSell;
+        return shouldSell;
+    }
 
     @Override
-    public String fromCSV() {
-        throw new UnsupportedOperationException("Not implemented yet");
+    public String toString() {
+        return name + ": ";//+ owned;
     }
+
 }

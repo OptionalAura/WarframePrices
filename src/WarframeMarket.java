@@ -21,6 +21,7 @@ public class WarframeMarket {
      * @param args
      */
     public static void main(String[] args){
+        WFInfo.updateItemCounts();
         Application app = new Application();
         app.start();
     }

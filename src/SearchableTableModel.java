@@ -22,7 +22,6 @@ import java.util.List;
 
 @SuppressWarnings({"SerializableHasSerializationMethods", "serial"})
 public abstract class SearchableTableModel<T> extends AbstractTableModel {
-    //todo serialize tableData
     private List<T> tableData;
     //private Vector<Vector> tableText;
     private List<String> columnNames;
@@ -41,6 +40,7 @@ public abstract class SearchableTableModel<T> extends AbstractTableModel {
         @Override
         public boolean include(Entry<? extends SearchableTableModel<T>, ? extends Integer> entry) {
             T item = tableData.get(entry.getIdentifier());
+            //System.out.println(item.toString());
             return filter(item);
         }
     };

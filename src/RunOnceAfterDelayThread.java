@@ -46,9 +46,7 @@ public class RunOnceAfterDelayThread extends Thread{
 
     @Override
     public void run() {
-        if(running)
-            return;
-        running = true;
+
         long curTime = System.currentTimeMillis();
         while(curTime - timer < buffer){
             try {

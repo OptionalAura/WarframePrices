@@ -18,23 +18,24 @@ import java.util.List;
 
 public class Utils {
     public static String arrayToString(Object[] array){
-        if(array == null)
-            return "null";
-        if(array.length == 0){
+        if (array == null) {
             return "";
         }
+        if (array.length == 0) {
+            return "[]";
+        }
         StringBuilder sb = new StringBuilder();
-        sb.append(array[0].toString());
-        for(int i = 1; i < array.length; i++){
+        sb.append('[').append(array[0].toString());
+        for (int i = 1; i < array.length; i++) {
             sb.append(", ").append(array[i].toString());
         }
+        sb.append(']');
         return sb.toString();
     }
     public static String listToString(List<?> array){
-        if(array == null)
-            return "null";
-        if(array.size() == 0){
-            return "[]";
+        if (array == null) return "";
+        if (array.size() == 0) {
+            return "";
         }
         StringBuilder sb = new StringBuilder();
         sb.append('[').append(array.get(0).toString());
